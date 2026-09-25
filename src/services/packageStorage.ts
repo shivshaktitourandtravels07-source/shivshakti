@@ -154,7 +154,7 @@ export async function getStoredPackages(): Promise<TourPackage[]> {
   return INITIAL_PACKAGES;
 }
 
-// 2. SAVE OR UPDATE PACKAGE (Syncs to Supabase, LocalStorage, and Server)
+// 2. SAVE OR UPDATE PACKAGE (Syncs to Supabase, Server, and LocalStorage)
 export async function saveTourPackage(
   pkgData: Partial<TourPackage>,
   isNew: boolean
@@ -183,26 +183,49 @@ export async function saveTourPackage(
       }
     }
 
-    // A. Always save to LocalStorage first (instant 100% reliable guarantee)
+    // A. Always save to LocalStorage first for instant UI response
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(existing));
 
-    // B. Save to Supabase
+    // B. Save to Supabase (Upsert with resolution=merge-duplicates)
     try {
       if (isNew) {
-        await fetch(`${SUPABASE_CONFIG.restUrl}/packages`, {
+        const sbRes = await fetch(`${SUPABASE_CONFIG.restUrl}/packages`, {
           method: 'POST',
-          headers: getSupabaseHeaders(),
+          headers: {
+            ...getSupabaseHeaders(),
+            'Prefer': 'resolution=merge-duplicates,return=representation'
+          },
           body: JSON.stringify(targetPkg)
         });
+        if (!sbRes.ok) {
+          const errText = await sbRes.text();
+          console.warn('Supabase insert notice:', sbRes.status, errText);
+        }
       } else {
-        await fetch(`${SUPABASE_CONFIG.restUrl}/packages?id=eq.${targetPkg.id}`, {
+        const sbRes = await fetch(`${SUPABASE_CONFIG.restUrl}/packages?id=eq.${encodeURIComponent(targetPkg.id)}`, {
           method: 'PATCH',
-          headers: getSupabaseHeaders(),
+          headers: {
+            ...getSupabaseHeaders(),
+            'Prefer': 'return=representation'
+          },
           body: JSON.stringify(targetPkg)
         });
+        if (!sbRes.ok) {
+          // If PATCH matched 0 rows, try inserting with upsert
+          const errText = await sbRes.text();
+          console.warn('Supabase patch notice, trying upsert:', sbRes.status, errText);
+          await fetch(`${SUPABASE_CONFIG.restUrl}/packages`, {
+            method: 'POST',
+            headers: {
+              ...getSupabaseHeaders(),
+              'Prefer': 'resolution=merge-duplicates,return=representation'
+            },
+            body: JSON.stringify(targetPkg)
+          });
+        }
       }
     } catch (sbErr) {
-      console.debug('Supabase sync notice:', sbErr);
+      console.warn('Supabase sync notice:', sbErr);
     }
 
     // C. Save to Server Node filesystem (/data/packages.json)
@@ -214,7 +237,7 @@ export async function saveTourPackage(
           body: JSON.stringify(targetPkg)
         });
       } else {
-        await fetch(`/api/packages/${targetPkg.id}`, {
+        await fetch(`/api/packages/${encodeURIComponent(targetPkg.id)}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(targetPkg)
@@ -230,7 +253,7 @@ export async function saveTourPackage(
   }
 }
 
-// 3. DELETE PACKAGE (Deletes from Supabase, LocalStorage, and Server)
+// 3. DELETE PACKAGE (Deletes from Supabase, Server, and LocalStorage)
 export async function deleteTourPackage(id: string): Promise<boolean> {
   try {
     const existing = await getStoredPackages();
@@ -239,17 +262,20 @@ export async function deleteTourPackage(id: string): Promise<boolean> {
 
     // Supabase delete
     try {
-      await fetch(`${SUPABASE_CONFIG.restUrl}/packages?id=eq.${id}`, {
+      const sbRes = await fetch(`${SUPABASE_CONFIG.restUrl}/packages?id=eq.${encodeURIComponent(id)}`, {
         method: 'DELETE',
         headers: getSupabaseHeaders()
       });
+      if (!sbRes.ok) {
+        console.warn('Supabase delete status:', sbRes.status);
+      }
     } catch (e) {
-      console.debug('Supabase delete notice:', e);
+      console.warn('Supabase delete notice:', e);
     }
 
     // Server delete
     try {
-      await fetch(`/api/packages/${id}`, { method: 'DELETE' });
+      await fetch(`/api/packages/${encodeURIComponent(id)}`, { method: 'DELETE' });
     } catch (e) {
       console.debug('Server delete notice:', e);
     }
@@ -257,6 +283,29 @@ export async function deleteTourPackage(id: string): Promise<boolean> {
     return true;
   } catch {
     return false;
+  }
+}
+
+// Helper: Push all current packages to Supabase
+export async function syncAllPackagesToSupabase(pkgs: TourPackage[]): Promise<{ success: boolean; count: number; error?: string }> {
+  try {
+    const res = await fetch(`${SUPABASE_CONFIG.restUrl}/packages`, {
+      method: 'POST',
+      headers: {
+        ...getSupabaseHeaders(),
+        'Prefer': 'resolution=merge-duplicates'
+      },
+      body: JSON.stringify(pkgs)
+    });
+
+    if (res.ok || res.status === 201) {
+      return { success: true, count: pkgs.length };
+    } else {
+      const errText = await res.text();
+      return { success: false, count: 0, error: `Supabase status ${res.status}: ${errText}` };
+    }
+  } catch (err: any) {
+    return { success: false, count: 0, error: err.message };
   }
 }
 

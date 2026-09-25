@@ -14,14 +14,29 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'Shubham@123';
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+// Serve static assets from public folder (including /hero, /uploads, etc.)
+app.use(express.static(path.join(process.cwd(), 'public')));
+
 const DATA_DIR = path.join(process.cwd(), 'data');
 const PACKAGES_FILE = path.join(DATA_DIR, 'packages.json');
 const INQUIRIES_FILE = path.join(DATA_DIR, 'inquiries.json');
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
 const UPLOADS_DIR = path.join(process.cwd(), 'public', 'uploads');
 
-// Default office branch settings (Editable from Admin Panel)
+// Default office branch settings & hero cover image (Editable from Admin Panel)
 const DEFAULT_SETTINGS = {
+  homeHero: {
+    coverImage: '/hero/slide1.jpg',
+    heading: 'Indore & Ujjain Darshan & Tour Packages',
+    subheading: 'Experience divine spiritual bliss across Madhya Pradesh’s revered Jyotirlingas: Shree Mahakaleshwar Bhasma Aarti (Ujjain) and Holy Omkareshwar (Narmada Island), together with Queen Ahilyabai’s sacred Maheshwar Ahilya Fort and Indore Heritage. Complete packages with sanitized cabs, deluxe hotels, and pure vegetarian dining.',
+    slides: [
+      { id: 'slide-1', title: 'Shree Mahakaleshwar Jyotirlinga, Ujjain', subtitle: 'Sacred Bhasma Aarti, Mahakal Lok Corridor & Shipra Ram Ghat', image: '/hero/slide1.jpg' },
+      { id: 'slide-2', title: 'Holy Omkareshwar Jyotirlinga & Narmada River', subtitle: 'Divine Island Pilgrimage, Mamleshwar Mahadev & Sacred Boat Ride', image: '/hero/slide2.jpg' },
+      { id: 'slide-3', title: 'Royal Maheshwar Fort & Sacred Ahilya Ghat', subtitle: 'Ahilya Fort, Ahileshwar Mandir, Sahastradhara & Rehwa Handlooms', image: '/hero/slide3.jpg' },
+      { id: 'slide-4', title: 'Historic Rajwada Palace & Indore City Heritage', subtitle: 'Rajwada Palace, Lal Bagh, 56 Dukan & Midnight Sarafa Street Food', image: '/hero/slide4.jpg' },
+      { id: 'slide-5', title: 'Mandu Jahaz Mahal & Heritage Monuments', subtitle: 'Jahaz Mahal, Hindola Mahal, Baz Bahadur & Rani Roopmati Pavilion', image: '/hero/slide5.jpg' }
+    ]
+  },
   ujjainOffice: {
     title: 'Ujjain Pilgrimage Branch (Near Mahakaleshwar Temple)',
     address: 'Shop No. 12, Mahakal Commercial Complex, Near Gate No. 4, Mahakaleshwar Temple, Ujjain, Madhya Pradesh 456001',
@@ -99,7 +114,15 @@ function writeInquiries(data: any) {
 function readSettings() {
   try {
     const raw = fs.readFileSync(SETTINGS_FILE, 'utf-8');
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    return {
+      ...DEFAULT_SETTINGS,
+      ...parsed,
+      homeHero: {
+        ...DEFAULT_SETTINGS.homeHero,
+        ...(parsed.homeHero || {})
+      }
+    };
   } catch {
     return DEFAULT_SETTINGS;
   }

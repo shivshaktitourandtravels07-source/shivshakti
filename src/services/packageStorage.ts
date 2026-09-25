@@ -1,5 +1,5 @@
-import { TourPackage, BookingInquiry } from '../types';
-import { INITIAL_PACKAGES } from '../data/packagesData';
+import { TourPackage, BookingInquiry, AgencySettings } from '../types';
+import { INITIAL_PACKAGES, HERO_SLIDES } from '../data/packagesData';
 
 // Supabase Configuration provided by user
 export const SUPABASE_CONFIG = {
@@ -10,6 +10,7 @@ export const SUPABASE_CONFIG = {
 
 const LOCAL_STORAGE_KEY = 'sst_custom_packages_v2';
 const LOCAL_INQUIRIES_KEY = 'sst_inquiries_v2';
+const LOCAL_SETTINGS_KEY = 'sst_agency_settings_v2';
 
 // Universal headers for Supabase REST API
 const getSupabaseHeaders = () => ({
@@ -75,6 +76,20 @@ create policy "Public inquiries access" on public.inquiries for all using (true)
 
 // Helper: Normalize package data coming from Supabase or LocalStorage
 function normalizePackage(pkg: any): TourPackage {
+  const gallery = Array.isArray(pkg.galleryImages)
+    ? pkg.galleryImages
+    : (pkg.galleryImages ? [pkg.galleryImages] : []);
+
+  let resolvedCover = pkg.coverImage;
+  // If coverImage is empty or default unsplash placeholder, prioritize actual gallery image or reliable local slide
+  if (!resolvedCover || resolvedCover.includes('photo-1548013146-72479768bada')) {
+    if (gallery.length > 0) {
+      resolvedCover = gallery[0];
+    } else {
+      resolvedCover = '/hero/slide1.jpg';
+    }
+  }
+
   return {
     id: String(pkg.id || `pkg-${Date.now()}`),
     slug: String(pkg.slug || `package-${Date.now()}`),
@@ -88,8 +103,8 @@ function normalizePackage(pkg: any): TourPackage {
     suitableFor: pkg.suitableFor || undefined,
     badge: pkg.badge || undefined,
     featured: Boolean(pkg.featured),
-    coverImage: pkg.coverImage || 'https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&w=1200&q=80',
-    galleryImages: Array.isArray(pkg.galleryImages) ? pkg.galleryImages : (pkg.galleryImages ? [pkg.galleryImages] : []),
+    coverImage: resolvedCover,
+    galleryImages: gallery,
     overview: String(pkg.overview || ''),
     highlights: Array.isArray(pkg.highlights) ? pkg.highlights : [],
     inclusions: Array.isArray(pkg.inclusions) ? pkg.inclusions : [],
@@ -406,6 +421,96 @@ export async function saveBookingInquiry(inquiry: Partial<BookingInquiry>): Prom
       body: JSON.stringify(newInq)
     });
   } catch (e) {}
+
+  return true;
+}
+
+// 5. AGENCY & HERO SETTINGS (Home Hero Banner & Office Branches)
+export const DEFAULT_AGENCY_SETTINGS: AgencySettings = {
+  homeHero: {
+    coverImage: '/hero/slide1.jpg',
+    heading: 'Indore & Ujjain Darshan & Tour Packages',
+    subheading: 'Experience divine spiritual bliss across Madhya Pradesh’s revered Jyotirlingas: Shree Mahakaleshwar Bhasma Aarti (Ujjain) and Holy Omkareshwar (Narmada Island), together with Queen Ahilyabai’s sacred Maheshwar Ahilya Fort and Indore Heritage. Complete packages with sanitized cabs, deluxe hotels, and pure vegetarian dining.',
+    slides: HERO_SLIDES
+  },
+  ujjainOffice: {
+    title: 'Ujjain Pilgrimage Branch (Near Mahakaleshwar Temple)',
+    address: 'Shop No. 12, Mahakal Commercial Complex, Near Gate No. 4, Mahakaleshwar Temple, Ujjain, Madhya Pradesh 456001',
+    contactPerson: 'Branch Manager / Mahakal Darshan Desk',
+    phone: '7999 353 101',
+    timing: '24x7 Available for Mahakal Bhasma Aarti & Darshan',
+    landmark: '2 Min Walking Distance from Mahakal Lok Corridor Gate 4',
+    mapUrl: 'https://maps.google.com/?q=Mahakaleshwar+Jyotirlinga+Ujjain'
+  },
+  indoreOffice: {
+    title: 'Indore Head Branch (Airport & Station Hub)',
+    address: '204, Treasure Island Road, Near South Tukoganj & Railway Station, Indore, Madhya Pradesh 452001',
+    contactPerson: 'Operations Head / Fleet Incharge',
+    phone: '7999 353 101',
+    timing: '06:00 AM to 11:30 PM (All 7 Days Open)',
+    landmark: '15 Mins from Indore Airport, 5 Mins from Indore Junction',
+    mapUrl: 'https://maps.google.com/?q=Treasure+Island+Indore'
+  }
+};
+
+export async function getAgencySettings(): Promise<AgencySettings> {
+  // 1. Try server API
+  try {
+    const res = await fetch('/api/settings');
+    if (res.ok) {
+      const data = await res.json();
+      if (data && (data.ujjainOffice || data.homeHero)) {
+        const merged: AgencySettings = {
+          ...DEFAULT_AGENCY_SETTINGS,
+          ...data,
+          homeHero: {
+            ...DEFAULT_AGENCY_SETTINGS.homeHero,
+            ...(data.homeHero || {})
+          }
+        };
+        localStorage.setItem(LOCAL_SETTINGS_KEY, JSON.stringify(merged));
+        return merged;
+      }
+    }
+  } catch (err) {
+    console.debug('Settings API notice:', err);
+  }
+
+  // 2. Try localStorage
+  try {
+    const local = localStorage.getItem(LOCAL_SETTINGS_KEY);
+    if (local) {
+      const parsed = JSON.parse(local);
+      return {
+        ...DEFAULT_AGENCY_SETTINGS,
+        ...parsed,
+        homeHero: {
+          ...DEFAULT_AGENCY_SETTINGS.homeHero,
+          ...(parsed.homeHero || {})
+        }
+      };
+    }
+  } catch (e) {}
+
+  return DEFAULT_AGENCY_SETTINGS;
+}
+
+export async function saveAgencySettings(settings: AgencySettings): Promise<boolean> {
+  // Save local
+  try {
+    localStorage.setItem(LOCAL_SETTINGS_KEY, JSON.stringify(settings));
+  } catch (e) {}
+
+  // Save server
+  try {
+    await fetch('/api/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings)
+    });
+  } catch (e) {
+    console.debug('Server save settings notice:', e);
+  }
 
   return true;
 }

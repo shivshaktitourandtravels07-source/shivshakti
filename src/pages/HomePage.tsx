@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Sparkles, Star, Phone, MessageCircle, Clock, MapPin, CheckCircle2, ChevronRight, Car, Hotel, UtensilsCrossed, ArrowRight, ShieldCheck, ChevronLeft, Flame, Award, HeartHandshake } from 'lucide-react';
-import { TourPackage } from '../types';
+import { TourPackage, HeroSlide } from '../types';
 import { AGENCY_INFO, HERO_SLIDES } from '../data/packagesData';
+import { getAgencySettings } from '../services/packageStorage';
 import { PackageCard } from '../components/PackageCard';
 import { BranchAddressesSection } from '../components/BranchAddressesSection';
 
@@ -23,25 +24,61 @@ export const HomePage: React.FC<HomePageProps> = ({
   const [quickPackageSlug, setQuickPackageSlug] = useState('2-days-1-night-ujjain-omkareshwar-darshan');
   const [quickMobile, setQuickMobile] = useState('');
 
-  // Hero background slider state
+  // Hero background slider & settings state
+  const [heroSlides, setHeroSlides] = useState<HeroSlide[]>(HERO_SLIDES);
+  const [heroHeading, setHeroHeading] = useState('');
+  const [heroSubheading, setHeroSubheading] = useState('');
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
 
+  // Load custom cover image & hero slides from Admin Settings
+  useEffect(() => {
+    getAgencySettings().then(settings => {
+      if (settings?.homeHero?.coverImage) {
+        const cover = settings.homeHero.coverImage;
+        const baseSlides = (settings.homeHero.slides && settings.homeHero.slides.length > 0)
+          ? settings.homeHero.slides
+          : HERO_SLIDES;
+        
+        // Put the active coverImage as the first slide
+        const mergedSlides: HeroSlide[] = [
+          {
+            id: 'primary-cover-slide',
+            title: baseSlides[0]?.title || 'Shree Mahakaleshwar & Omkareshwar Darshan',
+            subtitle: baseSlides[0]?.subtitle || 'Premier Pilgrimage & Tour Specialist',
+            image: cover
+          },
+          ...baseSlides.filter(s => s.image !== cover)
+        ];
+        setHeroSlides(mergedSlides);
+      } else if (settings?.homeHero?.slides && settings.homeHero.slides.length > 0) {
+        setHeroSlides(settings.homeHero.slides);
+      }
+
+      if (settings?.homeHero?.heading) {
+        setHeroHeading(settings.homeHero.heading);
+      }
+      if (settings?.homeHero?.subheading) {
+        setHeroSubheading(settings.homeHero.subheading);
+      }
+    }).catch(() => {});
+  }, []);
+
   // Auto slide rotation every 5 seconds (pauses when hovered)
   useEffect(() => {
-    if (isPaused) return;
+    if (isPaused || heroSlides.length <= 1) return;
     const timer = setInterval(() => {
-      setCurrentSlideIndex((prev) => (prev + 1) % HERO_SLIDES.length);
+      setCurrentSlideIndex((prev) => (prev + 1) % heroSlides.length);
     }, 5000);
     return () => clearInterval(timer);
-  }, [isPaused]);
+  }, [isPaused, heroSlides.length]);
 
   const nextSlide = () => {
-    setCurrentSlideIndex((prev) => (prev + 1) % HERO_SLIDES.length);
+    setCurrentSlideIndex((prev) => (prev + 1) % heroSlides.length);
   };
 
   const prevSlide = () => {
-    setCurrentSlideIndex((prev) => (prev - 1 + HERO_SLIDES.length) % HERO_SLIDES.length);
+    setCurrentSlideIndex((prev) => (prev - 1 + heroSlides.length) % heroSlides.length);
   };
 
   // Top featured packages only on HomePage (rest on /packages)
@@ -87,20 +124,26 @@ Please share complete itinerary & confirm availability.`;
       >
         {/* Background Images Slider Container */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
-          {HERO_SLIDES.map((slide, idx) => {
+          {heroSlides.map((slide, idx) => {
             const isActive = idx === currentSlideIndex;
             return (
               <div
-                key={slide.id}
+                key={slide.id || idx}
                 className={`absolute inset-0 transition-all duration-1000 ease-in-out ${
                   isActive ? 'opacity-85 scale-100' : 'opacity-0 scale-105'
                 }`}
               >
                 <img
-                  src={slide.image}
+                  src={slide.image || '/hero/slide1.jpg'}
                   alt={slide.title}
                   className="w-full h-full object-cover object-center filter brightness-95 contrast-105"
                   loading={idx === 0 ? 'eager' : 'lazy'}
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    if (target.src !== window.location.origin + '/hero/slide1.jpg') {
+                      target.src = '/hero/slide1.jpg';
+                    }
+                  }}
                 />
               </div>
             );
@@ -297,14 +340,14 @@ Please share complete itinerary & confirm availability.`;
 
           {/* 
             SLIDER THUMBNAIL NAVIGATOR 
-            Shows all 4 sliding destination preview cards with clean English titles
+            Shows sliding destination preview cards with clean English titles
           */}
           <div className="pt-8 border-t border-white/15 mt-6">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mb-3 text-xs">
               <div className="flex items-center gap-2 text-amber-300 font-medium">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                <span className="text-white font-semibold">Slide {currentSlideIndex + 1} of 4:</span>
-                <span className="text-amber-200 font-bold">{HERO_SLIDES[currentSlideIndex].title}</span>
+                <span className="text-white font-semibold">Slide {currentSlideIndex + 1} of {heroSlides.length}:</span>
+                <span className="text-amber-200 font-bold">{heroSlides[currentSlideIndex]?.title || 'Holy Pilgrimage Tour'}</span>
               </div>
               <div className="flex items-center gap-2 text-[11px] text-slate-300">
                 <span>Click destination to preview</span>
@@ -325,13 +368,13 @@ Please share complete itinerary & confirm availability.`;
               </div>
             </div>
 
-            {/* 4 Interactive Sliding Destination Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
-              {HERO_SLIDES.map((slide, idx) => {
+            {/* Interactive Sliding Destination Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-2.5 sm:gap-3">
+              {heroSlides.map((slide, idx) => {
                 const isActive = idx === currentSlideIndex;
                 return (
                   <button
-                    key={slide.id}
+                    key={slide.id || idx}
                     onClick={() => setCurrentSlideIndex(idx)}
                     className={`relative rounded-xl overflow-hidden text-left p-2 border-2 transition-all cursor-pointer flex items-center gap-2.5 ${
                       isActive
@@ -340,7 +383,17 @@ Please share complete itinerary & confirm availability.`;
                     }`}
                   >
                     <div className="w-12 h-10 rounded-lg overflow-hidden shrink-0 border border-white/20">
-                      <img src={slide.image} alt={slide.title} className="w-full h-full object-cover" />
+                      <img
+                        src={slide.image || '/hero/slide1.jpg'}
+                        alt={slide.title}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          if (target.src !== window.location.origin + '/hero/slide1.jpg') {
+                            target.src = '/hero/slide1.jpg';
+                          }
+                        }}
+                      />
                     </div>
                     <div className="overflow-hidden">
                       <div className="text-[10px] uppercase font-bold text-amber-400 truncate">

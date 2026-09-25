@@ -78,10 +78,16 @@ export const AboutPage: React.FC<AboutPageProps> = ({ navigate }) => {
           <div className="lg:col-span-6">
             <div className="relative rounded-3xl overflow-hidden shadow-lg border border-slate-200 bg-slate-100">
               <img
-                src="https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&w=1000&q=80"
+                src="/hero/slide1.jpg"
                 alt="Shree Mahakaleshwar Temple Ujjain Darshan"
                 className="w-full h-80 sm:h-96 object-cover"
                 loading="lazy"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  if (target.src !== window.location.origin + '/hero/slide1.jpg') {
+                    target.src = '/hero/slide1.jpg';
+                  }
+                }}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent flex items-end p-6">
                 <div className="text-white">

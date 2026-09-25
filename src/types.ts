@@ -76,7 +76,22 @@ export interface OfficeBranch {
   mapUrl: string;
 }
 
+export interface HeroSlide {
+  id: string;
+  title: string;
+  subtitle?: string;
+  image: string;
+}
+
+export interface HomeHeroSettings {
+  coverImage?: string;
+  heading?: string;
+  subheading?: string;
+  slides?: HeroSlide[];
+}
+
 export interface AgencySettings {
+  homeHero?: HomeHeroSettings;
   ujjainOffice: OfficeBranch;
   indoreOffice: OfficeBranch;
 }

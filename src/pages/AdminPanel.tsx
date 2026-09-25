@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Upload, Image as ImageIcon, CheckCircle, AlertCircle, Save, X, Phone, Calendar, Users, Eye, RefreshCw, Lock, KeyRound, Download, LogOut, ShieldCheck, FileSpreadsheet, MapPin, Building2, Navigation, Database, Copy, Check, ExternalLink } from 'lucide-react';
-import { TourPackage, BookingInquiry, AgencySettings } from '../types';
-import { getStoredPackages, saveTourPackage, deleteTourPackage, uploadImageFile, syncAllPackagesToSupabase, SUPABASE_CONFIG, SUPABASE_SETUP_SQL } from '../services/packageStorage';
+import { Plus, Edit2, Trash2, Upload, Image as ImageIcon, CheckCircle, AlertCircle, Save, X, Phone, Calendar, Users, Eye, RefreshCw, Lock, KeyRound, Download, LogOut, ShieldCheck, FileSpreadsheet, MapPin, Building2, Navigation, Database, Copy, Check, ExternalLink, Sparkles, CheckCheck } from 'lucide-react';
+import { TourPackage, BookingInquiry, AgencySettings, HeroSlide } from '../types';
+import { getStoredPackages, saveTourPackage, deleteTourPackage, uploadImageFile, syncAllPackagesToSupabase, SUPABASE_CONFIG, SUPABASE_SETUP_SQL, getAgencySettings, saveAgencySettings, DEFAULT_AGENCY_SETTINGS } from '../services/packageStorage';
+import { HERO_SLIDES } from '../data/packagesData';
 
 interface AdminPanelProps {
   packages: TourPackage[];
@@ -22,41 +23,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [loginError, setLoginError] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
 
-  // Tab State
-  const [activeTab, setActiveTab] = useState<'packages' | 'supabase' | 'inquiries' | 'uploads' | 'addresses'>('packages');
+  // Tab State: packages | cover_banner | supabase | inquiries | uploads | addresses
+  const [activeTab, setActiveTab] = useState<'packages' | 'cover_banner' | 'supabase' | 'inquiries' | 'uploads' | 'addresses'>('packages');
   const [editingPackage, setEditingPackage] = useState<TourPackage | null>(null);
   const [isCreatingNew, setIsCreatingNew] = useState(false);
   const [inquiries, setInquiries] = useState<BookingInquiry[]>([]);
   const [loadingInquiries, setLoadingInquiries] = useState(false);
   const [uploadLoading, setUploadLoading] = useState(false);
+  const [heroUploadLoading, setHeroUploadLoading] = useState(false);
   const [uploadedPhotos, setUploadedPhotos] = useState<string[]>([]);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [supabaseStatus, setSupabaseStatus] = useState<'testing' | 'connected' | 'table_missing' | 'error'>('testing');
   const [copiedSql, setCopiedSql] = useState(false);
   const [syncingAll, setSyncingAll] = useState(false);
 
-  // Office Address Settings State
-  const [addressSettings, setAddressSettings] = useState<AgencySettings>({
-    ujjainOffice: {
-      title: 'Ujjain Pilgrimage Branch (Near Mahakaleshwar Temple)',
-      address: 'Shop No. 12, Mahakal Commercial Complex, Near Gate No. 4, Mahakaleshwar Temple, Ujjain, Madhya Pradesh 456001',
-      contactPerson: 'Branch Manager / Mahakal Darshan Desk',
-      phone: '7999 353 101',
-      timing: '24x7 Available for Mahakal Bhasma Aarti & Darshan',
-      landmark: '2 Min Walking Distance from Mahakal Lok Corridor Gate 4',
-      mapUrl: 'https://maps.google.com/?q=Mahakaleshwar+Jyotirlinga+Ujjain'
-    },
-    indoreOffice: {
-      title: 'Indore Head Branch (Airport & Station Hub)',
-      address: '204, Treasure Island Road, Near South Tukoganj & Railway Station, Indore, Madhya Pradesh 452001',
-      contactPerson: 'Operations Head / Fleet Incharge',
-      phone: '7999 353 101',
-      timing: '06:00 AM to 11:30 PM (All 7 Days Open)',
-      landmark: '15 Mins from Indore Airport, 5 Mins from Indore Junction',
-      mapUrl: 'https://maps.google.com/?q=Treasure+Island+Indore'
-    }
-  });
+  // Agency & Home Hero Banner Settings State
+  const [addressSettings, setAddressSettings] = useState<AgencySettings>(DEFAULT_AGENCY_SETTINGS);
   const [savingAddresses, setSavingAddresses] = useState(false);
+  const [savingHomeHero, setSavingHomeHero] = useState(false);
+  const [customHomeHeroUrl, setCustomHomeHeroUrl] = useState('');
 
   // Form state for creating or editing package
   const [formData, setFormData] = useState<Partial<TourPackage>>({
@@ -174,14 +159,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }
   };
 
-  // Fetch address settings
+  // Fetch agency settings (Office addresses + Home Hero banner)
   const fetchAddressSettings = async () => {
     try {
-      const res = await fetch('/api/settings');
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.ujjainOffice && data.indoreOffice) {
-          setAddressSettings(data);
+      const data = await getAgencySettings();
+      if (data) {
+        setAddressSettings(data);
+        if (data.homeHero?.coverImage) {
+          setCustomHomeHeroUrl(data.homeHero.coverImage);
         }
       }
     } catch (err) {
@@ -202,21 +187,64 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     e.preventDefault();
     setSavingAddresses(true);
     try {
-      const res = await fetch('/api/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(addressSettings)
-      });
-      const data = await res.json();
-      if (res.ok) {
+      const success = await saveAgencySettings(addressSettings);
+      if (success) {
         showNotification('success', 'Branch office addresses saved successfully! They are now live on the website.');
       } else {
-        showNotification('error', data.error || 'Failed to save addresses');
+        showNotification('error', 'Failed to save addresses');
       }
     } catch (err: any) {
       showNotification('error', 'Network error: ' + err.message);
     } finally {
       setSavingAddresses(false);
+    }
+  };
+
+  // Home Page Cover Image & Banner Handlers
+  const handleSaveHomeHero = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setSavingHomeHero(true);
+    try {
+      const success = await saveAgencySettings(addressSettings);
+      if (success) {
+        showNotification('success', 'Home Page Cover Image & Banner updated! Changes are now live on the homepage.');
+      } else {
+        showNotification('error', 'Failed to save Home Page Cover Image.');
+      }
+    } catch (err: any) {
+      showNotification('error', 'Network error: ' + err.message);
+    } finally {
+      setSavingHomeHero(false);
+    }
+  };
+
+  const handleSetGlobalHomeCover = async (imgUrl: string) => {
+    if (!imgUrl) return;
+    const updated: AgencySettings = {
+      ...addressSettings,
+      homeHero: {
+        ...(addressSettings.homeHero || DEFAULT_AGENCY_SETTINGS.homeHero!),
+        coverImage: imgUrl
+      }
+    };
+    setAddressSettings(updated);
+    setCustomHomeHeroUrl(imgUrl);
+    await saveAgencySettings(updated);
+    showNotification('success', 'Home Page Cover Image updated! This photo is now live on the homepage.');
+  };
+
+  const handleHeroCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setHeroUploadLoading(true);
+    try {
+      const url = await uploadImageFile(file);
+      await handleSetGlobalHomeCover(url);
+    } catch (err: any) {
+      showNotification('error', 'Upload error: ' + err.message);
+    } finally {
+      setHeroUploadLoading(false);
+      e.target.value = '';
     }
   };
 
@@ -238,11 +266,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       pricePerPerson: 6499,
       originalPrice: 7999,
       badge: 'New Pilgrimage Tour',
-      coverImage: 'https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&w=1200&q=80',
-      galleryImages: [
-        'https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&w=800&q=80',
-        'https://images.unsplash.com/photo-1609766857041-ed402ea8069a?auto=format&fit=crop&w=800&q=80'
-      ],
+      coverImage: '',
+      galleryImages: [],
       overview: '',
       highlights: [
         'VIP Darshan at Shree Mahakaleshwar Jyotirlinga',
@@ -282,9 +307,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const handleStartEdit = (pkg: TourPackage) => {
     setEditingPackage(pkg);
     setIsCreatingNew(false);
+    const gallery = pkg.galleryImages || [];
+    let cover = pkg.coverImage;
+    if (!cover || cover.includes('photo-1548013146-72479768bada')) {
+      cover = gallery[0] || '/hero/slide1.jpg';
+    }
     setFormData({
       ...pkg,
-      galleryImages: pkg.galleryImages || []
+      coverImage: cover,
+      galleryImages: gallery
     });
     setHighlightsText(pkg.highlights?.join('\n') || '');
     setInclusionsText(pkg.inclusions?.join('\n') || '');
@@ -300,11 +331,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const handleAddCustomImageUrl = () => {
     if (!customImageUrl.trim()) return;
     const url = customImageUrl.trim();
-    setFormData(prev => ({
-      ...prev,
-      coverImage: prev.coverImage || url,
-      galleryImages: [...(prev.galleryImages || []), url]
-    }));
+    setFormData(prev => {
+      const isDefaultCover = !prev.coverImage || prev.coverImage.includes('photo-1548013146-72479768bada');
+      return {
+        ...prev,
+        coverImage: isDefaultCover ? url : prev.coverImage,
+        galleryImages: [...(prev.galleryImages || []), url]
+      };
+    });
     setCustomImageUrl('');
     showNotification('success', 'Image added to gallery!');
   };
@@ -321,15 +355,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
       setFormData(prev => {
         const existing = prev.galleryImages || [];
+        const isDefaultCover = !prev.coverImage || prev.coverImage.includes('photo-1548013146-72479768bada');
         return {
           ...prev,
-          coverImage: prev.coverImage || urls[0],
+          coverImage: isDefaultCover ? urls[0] : prev.coverImage,
           galleryImages: [...existing, ...urls]
         };
       });
 
       setUploadedPhotos(prev => [...urls, ...prev]);
-      showNotification('success', `${urls.length} images uploaded & added to package!`);
+      showNotification('success', `${urls.length} image(s) uploaded and saved!`);
     } catch (err: any) {
       showNotification('error', 'Error uploading images: ' + err.message);
     } finally {
@@ -355,8 +390,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   };
 
   const handleSetCoverImage = (imgUrl: string) => {
-    setFormData(prev => ({ ...prev, coverImage: imgUrl }));
-    showNotification('success', 'Cover image updated!');
+    setFormData(prev => ({
+      ...prev,
+      coverImage: imgUrl,
+      galleryImages: prev.galleryImages?.includes(imgUrl) ? prev.galleryImages : [imgUrl, ...(prev.galleryImages || [])]
+    }));
+    showNotification('success', 'Primary cover photo updated! This photo will appear on the Home Page and Package listings.');
   };
 
   // Save Package (Works with Supabase, Server & LocalStorage!)
@@ -372,8 +411,19 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     const preparedInclusions = inclusionsText.split('\n').map(s => s.trim()).filter(Boolean);
     const preparedExclusions = exclusionsText.split('\n').map(s => s.trim()).filter(Boolean);
 
+    // Ensure cover image is valid and not stuck on default unsplash placeholder
+    let finalCover = formData.coverImage;
+    if (!finalCover || finalCover.includes('photo-1548013146-72479768bada')) {
+      if (formData.galleryImages && formData.galleryImages.length > 0) {
+        finalCover = formData.galleryImages[0];
+      } else {
+        finalCover = '/hero/slide1.jpg';
+      }
+    }
+
     const payload: Partial<TourPackage> = {
       ...formData,
+      coverImage: finalCover,
       highlights: preparedHighlights,
       inclusions: preparedInclusions,
       exclusions: preparedExclusions
@@ -584,6 +634,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         >
           <Building2 className="w-4 h-4" />
           <span>Tour Packages ({packages.length})</span>
+        </button>
+
+        <button
+          onClick={() => { setActiveTab('cover_banner'); handleCancelForm(); }}
+          className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-2 cursor-pointer ${
+            activeTab === 'cover_banner'
+              ? 'bg-amber-800 text-white shadow-xs'
+              : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+          }`}
+        >
+          <Sparkles className="w-4 h-4 text-amber-500" />
+          <span>Home Cover & Banner</span>
         </button>
 
         <button
@@ -828,59 +890,134 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     </div>
                   </div>
 
-                  {/* Cover Image Indicator */}
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Primary Cover Image URL</label>
-                    <input
-                      type="text"
-                      value={formData.coverImage || ''}
-                      onChange={(e) => setFormData({ ...formData, coverImage: e.target.value })}
-                      placeholder="Primary cover photo displayed on listing cards..."
-                      className="w-full p-2 text-xs border border-slate-300 rounded-xl bg-white text-slate-900 font-mono"
-                    />
+                  {/* Primary Cover Photo Preview & Live Manager */}
+                  <div className="bg-amber-50/70 border-2 border-amber-300 rounded-2xl p-4 space-y-3 shadow-xs">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-amber-900 uppercase tracking-wider">Primary Cover Photo</span>
+                          <span className="bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-xs">
+                            <Check className="w-3 h-3" />
+                            <span>Shown on Home Page & Package Cards</span>
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-amber-800/80 mt-0.5">
+                          This is the main image visitors see on the homepage and tour listings. Click any photo below to make it the cover.
+                        </p>
+                      </div>
+
+                      {formData.coverImage && (
+                        <button
+                          type="button"
+                          onClick={() => handleSetGlobalHomeCover(formData.coverImage!)}
+                          className="px-3 py-1.5 rounded-xl bg-amber-800 hover:bg-amber-900 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer shrink-0"
+                          title="Set this photo as the Home Page Cover Banner"
+                        >
+                          <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                          <span>Use as Home Cover</span>
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+                      <div className="sm:col-span-4 h-32 sm:h-28 rounded-xl overflow-hidden bg-slate-900 border border-amber-400 relative shadow-xs">
+                        <img
+                          src={formData.coverImage || (formData.galleryImages && formData.galleryImages[0]) || '/hero/slide1.jpg'}
+                          alt="Primary cover preview"
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            if (target.src !== window.location.origin + '/hero/slide1.jpg') {
+                              target.src = '/hero/slide1.jpg';
+                            }
+                          }}
+                        />
+                        <div className="absolute bottom-1.5 left-1.5 bg-black/70 backdrop-blur-xs text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded">
+                          Current Cover Preview
+                        </div>
+                      </div>
+
+                      <div className="sm:col-span-8 space-y-2">
+                        <label className="block text-[11px] font-bold text-slate-700">Cover Image URL</label>
+                        <input
+                          type="text"
+                          value={formData.coverImage || ''}
+                          onChange={(e) => setFormData({ ...formData, coverImage: e.target.value })}
+                          placeholder="Paste image URL or upload photo above..."
+                          className="w-full p-2 text-xs border border-slate-300 rounded-xl bg-white text-slate-900 font-mono focus:ring-2 focus:ring-amber-500/30"
+                        />
+                        <p className="text-[11px] text-slate-500">
+                          Tip: Uploading photos automatically assigns the first photo as the cover image. You can switch covers anytime by clicking "Make Cover" below.
+                        </p>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Thumbnails Grid of all added images */}
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-2">Live Photo Gallery & Manager</label>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-bold text-slate-700">Live Photo Gallery ({formData.galleryImages?.length || 0} Photos)</label>
+                      <span className="text-[11px] text-slate-500">Click any image to make it Cover Photo</span>
+                    </div>
+
                     {(!formData.galleryImages || formData.galleryImages.length === 0) ? (
                       <div className="p-6 text-center bg-white rounded-xl border border-dashed border-slate-300 text-slate-400 text-xs">
-                        No photos in gallery yet. Upload photos from your device or paste URLs above!
+                        No photos added yet. Upload from device or paste URLs above to add photos!
                       </div>
                     ) : (
                       <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
                         {formData.galleryImages.map((imgUrl, idx) => {
                           const isCover = formData.coverImage === imgUrl;
                           return (
-                            <div key={idx} className="relative group rounded-xl overflow-hidden border border-slate-200 bg-slate-100 aspect-video shadow-xs">
+                            <div
+                              key={idx}
+                              className={`relative group rounded-xl overflow-hidden border-2 aspect-video shadow-xs transition-all ${
+                                isCover ? 'border-emerald-500 ring-2 ring-emerald-400/50 bg-emerald-950/20' : 'border-slate-200 bg-slate-100 hover:border-amber-400'
+                              }`}
+                            >
                               <img
                                 src={imgUrl}
                                 alt={`Gallery item ${idx + 1}`}
                                 className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  if (target.src !== window.location.origin + '/hero/slide1.jpg') {
+                                    target.src = '/hero/slide1.jpg';
+                                  }
+                                }}
                               />
                               {isCover && (
-                                <div className="absolute top-1 left-1 bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow">
-                                  Cover
+                                <div className="absolute top-1 left-1 bg-emerald-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow flex items-center gap-1 z-10">
+                                  <Check className="w-2.5 h-2.5" />
+                                  <span>Cover Photo</span>
                                 </div>
                               )}
-                              <div className="absolute inset-0 bg-slate-950/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 p-1">
+                              <div className="absolute inset-0 bg-slate-950/75 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1.5 p-1">
                                 {!isCover && (
                                   <button
                                     type="button"
                                     onClick={() => handleSetCoverImage(imgUrl)}
-                                    className="p-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-[10px] font-bold"
-                                    title="Set as cover image"
+                                    className="px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-[10px] font-bold cursor-pointer w-full text-center"
+                                    title="Set as package cover image"
                                   >
-                                    Cover
+                                    ★ Make Cover
                                   </button>
                                 )}
                                 <button
                                   type="button"
+                                  onClick={() => handleSetGlobalHomeCover(imgUrl)}
+                                  className="px-2 py-0.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-[9px] font-semibold cursor-pointer w-full text-center"
+                                  title="Set as Home Page Cover"
+                                >
+                                  Use for Home
+                                </button>
+                                <button
+                                  type="button"
                                   onClick={() => handleRemoveGalleryImage(idx)}
-                                  className="p-1.5 bg-red-600 hover:bg-red-700 text-white rounded-md shadow"
+                                  className="p-1 bg-red-600 hover:bg-red-700 text-white rounded-md text-[10px] cursor-pointer"
                                   title="Remove image"
                                 >
-                                  <Trash2 className="w-3.5 h-3.5" />
+                                  <Trash2 className="w-3 h-3" />
                                 </button>
                               </div>
                             </div>
@@ -961,9 +1098,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 <div>
                   <div className="relative aspect-video bg-slate-900 overflow-hidden">
                     <img
-                      src={pkg.coverImage}
+                      src={pkg.coverImage || '/hero/slide1.jpg'}
                       alt={pkg.title}
                       className="w-full h-full object-cover"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        if (target.src !== window.location.origin + '/hero/slide1.jpg') {
+                          target.src = '/hero/slide1.jpg';
+                        }
+                      }}
                     />
                     <div className="absolute top-2 left-2 bg-amber-900/90 backdrop-blur-xs text-white text-[10px] font-bold px-2 py-0.5 rounded shadow">
                       {pkg.duration}
@@ -1005,7 +1148,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     <Eye className="w-4 h-4" />
                   </a>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => handleSetGlobalHomeCover(pkg.coverImage || (pkg.galleryImages && pkg.galleryImages[0]) || '/hero/slide1.jpg')}
+                      className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200 cursor-pointer"
+                      title="Set this photo as the Home Page Cover Banner"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                      <span className="hidden sm:inline">Set Home Cover</span>
+                    </button>
                     <button
                       onClick={() => handleStartEdit(pkg)}
                       className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-200 cursor-pointer"
@@ -1024,6 +1175,279 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* TAB: HOME COVER & HERO BANNER MANAGER */}
+      {activeTab === 'cover_banner' && (
+        <div className="space-y-6">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
+              <div>
+                <span className="text-xs font-bold text-amber-800 uppercase tracking-wider">Homepage Customization</span>
+                <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2 mt-0.5">
+                  <Sparkles className="w-5 h-5 text-amber-600" />
+                  <span>Home Page Cover Image & Hero Banner</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  Change the main cover background image, banner title, and sliding spots displayed at the very top of your homepage.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleSaveHomeHero()}
+                  disabled={savingHomeHero}
+                  className="px-5 py-2.5 rounded-xl bg-amber-800 hover:bg-amber-900 text-white font-bold text-xs flex items-center gap-2 shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>{savingHomeHero ? 'Saving Changes...' : 'Save Live Home Banner'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* LIVE PREVIEW OF CURRENT COVER BANNER */}
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-slate-800">
+                1. Live Homepage Cover Preview
+              </label>
+              <div className="relative rounded-2xl overflow-hidden bg-slate-950 aspect-[21/9] sm:aspect-[24/9] border-2 border-amber-500 shadow-md">
+                <img
+                  src={addressSettings.homeHero?.coverImage || '/hero/slide1.jpg'}
+                  alt="Homepage Hero Banner Preview"
+                  className="w-full h-full object-cover filter brightness-90"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    if (target.src !== window.location.origin + '/hero/slide1.jpg') {
+                      target.src = '/hero/slide1.jpg';
+                    }
+                  }}
+                />
+                <div className="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-950/50 to-transparent p-6 sm:p-8 flex flex-col justify-end text-white">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/40 text-[11px] font-semibold w-fit mb-2 backdrop-blur-sm">
+                    <Sparkles className="w-3 h-3 text-amber-400" />
+                    <span>Active Live Homepage Cover Image</span>
+                  </div>
+                  <h4 className="text-xl sm:text-3xl font-extrabold text-white leading-tight">
+                    {addressSettings.homeHero?.heading || 'Indore & Ujjain Darshan & Tour Packages'}
+                  </h4>
+                  <p className="text-xs sm:text-sm text-slate-300 line-clamp-2 max-w-xl mt-1">
+                    {addressSettings.homeHero?.subheading || 'Experience divine spiritual bliss across Madhya Pradesh’s revered Jyotirlingas: Shree Mahakaleshwar Bhasma Aarti (Ujjain) and Holy Omkareshwar (Narmada Island)...'}
+                  </p>
+                </div>
+                <div className="absolute top-3 right-3 bg-emerald-600 text-white text-[11px] font-bold px-3 py-1 rounded-full shadow-md flex items-center gap-1.5">
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Currently Live on Website</span>
+                </div>
+              </div>
+            </div>
+
+            {/* QUICK ACTIONS TO CHANGE COVER IMAGE */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+              
+              {/* Option A: Upload Direct from Device */}
+              <div className="bg-amber-50/50 border border-amber-200/80 rounded-2xl p-5 space-y-3">
+                <div className="flex items-center gap-2 text-amber-900 font-bold text-sm">
+                  <Upload className="w-4 h-4 text-amber-700" />
+                  <span>Upload New Cover Image from Device</span>
+                </div>
+                <p className="text-xs text-slate-600">
+                  Select a high-resolution photo from your phone or PC. It will automatically upload and become the new Homepage Cover.
+                </p>
+                <div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleHeroCoverUpload}
+                    disabled={heroUploadLoading}
+                    className="w-full text-xs text-slate-500 file:mr-3 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-amber-700 file:text-white hover:file:bg-amber-800 cursor-pointer"
+                  />
+                  {heroUploadLoading && (
+                    <p className="text-xs text-amber-700 font-semibold mt-2 flex items-center gap-2">
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Uploading & setting home cover image...</span>
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Option B: Enter Custom URL */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-3">
+                <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
+                  <ImageIcon className="w-4 h-4 text-amber-700" />
+                  <span>Or Paste Image URL</span>
+                </div>
+                <p className="text-xs text-slate-600">
+                  Paste any web link or uploaded image path to use as the Home Cover Image.
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={customHomeHeroUrl}
+                    onChange={(e) => setCustomHomeHeroUrl(e.target.value)}
+                    placeholder="https://... or /uploads/..."
+                    className="flex-1 p-2 text-xs border border-slate-300 rounded-xl bg-white text-slate-900 font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (customHomeHeroUrl.trim()) {
+                        handleSetGlobalHomeCover(customHomeHeroUrl.trim());
+                      }
+                    }}
+                    className="bg-amber-800 hover:bg-amber-900 text-white font-bold px-4 py-2 rounded-xl text-xs shrink-0 cursor-pointer"
+                  >
+                    Apply URL
+                  </button>
+                </div>
+              </div>
+
+            </div>
+
+            {/* PRE-VERIFIED SACRED DESTINATION PRESETS (1-CLICK SELECT) */}
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-bold text-slate-800">
+                  2. Choose from High-Resolution Sacred Presets (1-Click Apply)
+                </label>
+                <span className="text-[11px] text-slate-500">Instant preview & switch</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                {[
+                  { title: 'Shree Mahakaleshwar, Ujjain', img: '/hero/slide1.jpg', tag: 'Mahakal Mandir' },
+                  { title: 'Holy Omkareshwar Jyotirlinga', img: '/hero/slide2.jpg', tag: 'Narmada Island' },
+                  { title: 'Royal Maheshwar Ahilya Fort', img: '/hero/slide3.jpg', tag: 'Ahilya Ghat' },
+                  { title: 'Historic Rajwada Palace', img: '/hero/slide4.jpg', tag: 'Indore Heritage' },
+                  { title: 'Mandu Jahaz Mahal', img: '/hero/slide5.jpg', tag: 'Mandu Fort' },
+                ].map((preset, idx) => {
+                  const isCurrent = addressSettings.homeHero?.coverImage === preset.img;
+                  return (
+                    <div
+                      key={idx}
+                      onClick={() => handleSetGlobalHomeCover(preset.img)}
+                      className={`group relative rounded-xl overflow-hidden aspect-[4/3] border-2 cursor-pointer transition-all ${
+                        isCurrent
+                          ? 'border-emerald-500 ring-2 ring-emerald-400 shadow-md scale-[1.02]'
+                          : 'border-slate-200 hover:border-amber-400 hover:scale-[1.01]'
+                      }`}
+                    >
+                      <img src={preset.img} alt={preset.title} className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent p-2.5 flex flex-col justify-end text-white">
+                        <span className="text-[10px] font-bold text-amber-300 truncate">{preset.tag}</span>
+                        <span className="text-[11px] font-semibold line-clamp-1">{preset.title}</span>
+                      </div>
+                      {isCurrent && (
+                        <div className="absolute top-1.5 right-1.5 bg-emerald-600 text-white rounded-full p-1 shadow">
+                          <Check className="w-3 h-3" />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* CHOOSE FROM YOUR TOUR PACKAGES' COVERS */}
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-bold text-slate-800">
+                  3. Or Pick From Any Tour Package's Cover Photo
+                </label>
+                <span className="text-[11px] text-slate-500">Uses that package's cover photo for Homepage</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {packages.map((pkg) => {
+                  const isCurrent = addressSettings.homeHero?.coverImage === pkg.coverImage;
+                  return (
+                    <div
+                      key={pkg.id}
+                      onClick={() => handleSetGlobalHomeCover(pkg.coverImage)}
+                      className={`group relative rounded-xl overflow-hidden aspect-video border-2 cursor-pointer transition-all ${
+                        isCurrent
+                          ? 'border-emerald-500 ring-2 ring-emerald-400 shadow-md scale-[1.02]'
+                          : 'border-slate-200 hover:border-amber-400'
+                      }`}
+                    >
+                      <img
+                        src={pkg.coverImage || '/hero/slide1.jpg'}
+                        alt={pkg.title}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          if (target.src !== window.location.origin + '/hero/slide1.jpg') {
+                            target.src = '/hero/slide1.jpg';
+                          }
+                        }}
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent p-2 flex flex-col justify-end text-white">
+                        <span className="text-[10px] font-semibold line-clamp-1">{pkg.title}</span>
+                      </div>
+                      {isCurrent && (
+                        <div className="absolute top-1.5 right-1.5 bg-emerald-600 text-white rounded-full p-1 shadow">
+                          <Check className="w-3 h-3" />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* EDIT HOMEPAGE HEADINGS */}
+            <div className="space-y-4 pt-4 border-t border-slate-200">
+              <label className="block text-xs font-bold text-slate-800">
+                4. Customize Hero Title & Subheading Text (Optional)
+              </label>
+              <div className="grid grid-cols-1 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Hero Main Heading</label>
+                  <input
+                    type="text"
+                    value={addressSettings.homeHero?.heading || ''}
+                    onChange={(e) => setAddressSettings({
+                      ...addressSettings,
+                      homeHero: {
+                        ...(addressSettings.homeHero || DEFAULT_AGENCY_SETTINGS.homeHero!),
+                        heading: e.target.value
+                      }
+                    })}
+                    placeholder="Indore & Ujjain Darshan & Tour Packages"
+                    className="w-full p-2.5 text-xs border border-slate-300 rounded-xl bg-white text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Hero Subheading Description</label>
+                  <textarea
+                    rows={3}
+                    value={addressSettings.homeHero?.subheading || ''}
+                    onChange={(e) => setAddressSettings({
+                      ...addressSettings,
+                      homeHero: {
+                        ...(addressSettings.homeHero || DEFAULT_AGENCY_SETTINGS.homeHero!),
+                        subheading: e.target.value
+                      }
+                    })}
+                    placeholder="Experience divine spiritual bliss across Madhya Pradesh’s revered Jyotirlingas..."
+                    className="w-full p-2.5 text-xs border border-slate-300 rounded-xl bg-white text-slate-900"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={() => handleSaveHomeHero()}
+                  disabled={savingHomeHero}
+                  className="px-6 py-2.5 rounded-xl bg-amber-800 hover:bg-amber-900 text-white font-bold text-xs flex items-center gap-2 shadow-md transition-all cursor-pointer"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>{savingHomeHero ? 'Saving...' : 'Save & Publish All Homepage Changes'}</span>
+                </button>
+              </div>
+            </div>
+
           </div>
         </div>
       )}

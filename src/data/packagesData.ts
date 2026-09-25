@@ -1,6 +1,6 @@
 import { TourPackage, DestinationInfo } from '../types';
 
-// 4 Curated Hero Background Slides for the spiritual sliding background
+// Curated Hero Background Slides for the spiritual sliding background
 export const HERO_SLIDES = [
   {
     id: 'slide-1',
@@ -25,6 +25,12 @@ export const HERO_SLIDES = [
     title: 'Historic Rajwada Palace & Indore City Heritage',
     subtitle: 'Rajwada Palace, Lal Bagh, 56 Dukan & Midnight Sarafa Street Food',
     image: '/hero/slide4.jpg'
+  },
+  {
+    id: 'slide-5',
+    title: 'Mandu Jahaz Mahal & Heritage Monuments',
+    subtitle: 'Jahaz Mahal, Hindola Mahal, Baz Bahadur & Rani Roopmati Pavilion',
+    image: '/hero/slide5.jpg'
   }
 ];
 
@@ -42,12 +48,12 @@ export const INITIAL_PACKAGES: TourPackage[] = [
     suitableFor: 'Family, Couples, Group of 2 to 6+ Persons',
     badge: 'Most Popular Divine Tour',
     featured: true,
-    coverImage: 'https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&w=1200&q=80',
+    coverImage: '/hero/slide1.jpg',
     galleryImages: [
-      'https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1609766857041-ed402ea8069a?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1582510003544-4d00b7f74220?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&w=800&q=80'
+      '/hero/slide1.jpg',
+      '/hero/slide2.jpg',
+      '/hero/slide3.jpg',
+      '/hero/slide4.jpg'
     ],
     overview: 'Embark on a sacred 2-day pilgrimage across two revered Jyotirlingas in Madhya Pradesh — Shree Mahakaleshwar in Ujjain and Omkareshwar on the holy Narmada River. Includes VIP Darshan facilitation, dedicated comfortable sanitized cab throughout, super deluxe accommodation, authentic meals, and a scenic holy boat ride.',
     highlights: [
@@ -124,12 +130,12 @@ export const INITIAL_PACKAGES: TourPackage[] = [
     suitableFor: 'Families, Senior Citizens, Devotees, Cultural Explorers, Groups of 2 to 6+ Persons',
     badge: 'Signature Heritage Circuit',
     featured: true,
-    coverImage: 'https://images.unsplash.com/photo-1582510003544-4d00b7f74220?auto=format&fit=crop&w=1200&q=80',
+    coverImage: '/hero/slide3.jpg',
     galleryImages: [
-      'https://images.unsplash.com/photo-1582510003544-4d00b7f74220?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1609766857041-ed402ea8069a?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1590050752117-238cb0fb12b1?auto=format&fit=crop&w=800&q=80'
+      '/hero/slide3.jpg',
+      '/hero/slide2.jpg',
+      '/hero/slide1.jpg',
+      '/hero/slide4.jpg'
     ],
     overview: 'Our flagship 3-day royal pilgrimage covers the sacred Jyotirlingas of Shree Mahakaleshwar and Omkareshwar together with Queen Ahilyabai’s historic capital Maheshwar. Experience iconic destinations: Ahilya Fort, Ahileshwar & Raj Rajeshwar Temples, holy Narmada boat ride, Sahastradhara, authentic Rehwa handloom weaving, and scenic Jam Gate with comfortable chauffeur transfers.',
     highlights: [
@@ -228,10 +234,10 @@ export const INITIAL_PACKAGES: TourPackage[] = [
     suitableFor: 'Day visitors, corporate travelers, pilgrims with short layover',
     badge: 'Same Day Special',
     featured: false,
-    coverImage: 'https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&w=1200&q=80',
+    coverImage: '/hero/slide1.jpg',
     galleryImages: [
-      'https://images.unsplash.com/photo-1548013146-72479768bada?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1609766857041-ed402ea8069a?auto=format&fit=crop&w=800&q=80'
+      '/hero/slide1.jpg',
+      '/hero/slide2.jpg'
     ],
     overview: 'Short on time? Experience the spiritual energy of Shree Mahakaleshwar Jyotirlinga, Kaal Bhairav, Sandipani Ashram, and the Ram Ghat evening aarti with our punctual, comfortable dedicated sanitized cab service.',
     highlights: [

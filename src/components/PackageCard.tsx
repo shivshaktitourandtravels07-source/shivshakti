@@ -34,10 +34,16 @@ Please share vehicle availability and dates.`;
         className="relative h-52 sm:h-56 w-full overflow-hidden bg-slate-900 block cursor-pointer"
       >
         <img
-          src={pkg.coverImage}
+          src={pkg.coverImage || '/hero/slide1.jpg'}
           alt={pkg.title}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           loading="lazy"
+          onError={(e) => {
+            const target = e.target as HTMLImageElement;
+            if (target.src !== window.location.origin + '/hero/slide1.jpg') {
+              target.src = '/hero/slide1.jpg';
+            }
+          }}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/20 to-transparent" />
         

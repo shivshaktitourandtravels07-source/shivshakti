@@ -72,9 +72,15 @@ export const PackageDetailPage: React.FC<PackageDetailPageProps> = ({
             <div className="space-y-3">
               <div className="relative h-64 sm:h-96 md:h-[420px] rounded-2xl sm:rounded-3xl overflow-hidden bg-slate-900 shadow-md">
                 <img
-                  src={images[activeImageIndex] || pkg.coverImage}
+                  src={images[activeImageIndex] || pkg.coverImage || '/hero/slide1.jpg'}
                   alt={pkg.title}
                   className="w-full h-full object-cover transition-all duration-500"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    if (target.src !== window.location.origin + '/hero/slide1.jpg') {
+                      target.src = '/hero/slide1.jpg';
+                    }
+                  }}
                 />
                 <div className="absolute top-4 right-4 flex items-center gap-2">
                   <button
@@ -99,7 +105,17 @@ export const PackageDetailPage: React.FC<PackageDetailPageProps> = ({
                         activeImageIndex === idx ? 'border-amber-700 scale-105 shadow-sm' : 'border-slate-200 opacity-70 hover:opacity-100'
                       }`}
                     >
-                      <img src={img} alt={`View ${idx + 1}`} className="w-full h-full object-cover" />
+                      <img
+                        src={img || '/hero/slide1.jpg'}
+                        alt={`View ${idx + 1}`}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          if (target.src !== window.location.origin + '/hero/slide1.jpg') {
+                            target.src = '/hero/slide1.jpg';
+                          }
+                        }}
+                      />
                     </button>
                   ))}
                 </div>

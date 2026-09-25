@@ -39,9 +39,15 @@ export const DestinationPage: React.FC<DestinationPageProps> = ({
       <div className="relative bg-gradient-to-r from-amber-950 via-slate-900 to-slate-950 text-white py-16 sm:py-24 overflow-hidden border-b border-amber-900/30">
         <div className="absolute inset-0 z-0">
           <img
-            src={destination.heroImage}
+            src={destination.heroImage || '/hero/slide1.jpg'}
             alt={destination.name}
             className="w-full h-full object-cover opacity-30"
+            onError={(e) => {
+              const target = e.target as HTMLImageElement;
+              if (target.src !== window.location.origin + '/hero/slide1.jpg') {
+                target.src = '/hero/slide1.jpg';
+              }
+            }}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/80 to-amber-950/40" />
         </div>
@@ -99,9 +105,15 @@ export const DestinationPage: React.FC<DestinationPageProps> = ({
               >
                 <div className="sm:w-48 h-44 sm:h-auto shrink-0 bg-slate-900 overflow-hidden relative">
                   <img
-                    src={attr.image}
+                    src={attr.image || '/hero/slide1.jpg'}
                     alt={attr.name}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      if (target.src !== window.location.origin + '/hero/slide1.jpg') {
+                        target.src = '/hero/slide1.jpg';
+                      }
+                    }}
                   />
                 </div>
                 <div className="p-5 flex-1 flex flex-col justify-between">

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Upload, Image as ImageIcon, CheckCircle, AlertCircle, Save, X, Phone, Calendar, Users, Eye, RefreshCw, Lock, KeyRound, Download, LogOut, ShieldCheck, FileSpreadsheet, MapPin, Building2, Navigation, Database, Copy, Check, ExternalLink } from 'lucide-react';
 import { TourPackage, BookingInquiry, AgencySettings } from '../types';
-import { getStoredPackages, saveTourPackage, deleteTourPackage, uploadImageFile, SUPABASE_CONFIG, SUPABASE_SETUP_SQL } from '../services/packageStorage';
+import { getStoredPackages, saveTourPackage, deleteTourPackage, uploadImageFile, syncAllPackagesToSupabase, SUPABASE_CONFIG, SUPABASE_SETUP_SQL } from '../services/packageStorage';
 
 interface AdminPanelProps {
   packages: TourPackage[];
@@ -33,6 +33,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [supabaseStatus, setSupabaseStatus] = useState<'testing' | 'connected' | 'table_missing' | 'error'>('testing');
   const [copiedSql, setCopiedSql] = useState(false);
+  const [syncingAll, setSyncingAll] = useState(false);
 
   // Office Address Settings State
   const [addressSettings, setAddressSettings] = useState<AgencySettings>({
@@ -436,6 +437,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     showNotification('success', 'Supabase SQL copied to clipboard!');
   };
 
+  // Sync all packages to Supabase
+  const handleSyncAllToSupabase = async () => {
+    setSyncingAll(true);
+    try {
+      const currentPkgs = await getStoredPackages();
+      const res = await syncAllPackagesToSupabase(currentPkgs);
+      if (res.success) {
+        showNotification('success', `Successfully synced ${res.count} packages to Supabase cloud!`);
+        onRefreshPackages();
+      } else {
+        showNotification('error', `Sync failed: ${res.error || 'Unknown error'}`);
+      }
+    } catch (err: any) {
+      showNotification('error', `Sync error: ${err.message}`);
+    } finally {
+      setSyncingAll(false);
+    }
+  };
+
   // 1. Password Login Screen
   if (!isAuthenticated) {
     return (
@@ -611,16 +631,37 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           {!isCreatingNew && !editingPackage && (
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
               <div>
-                <h3 className="text-base font-bold text-slate-900">Current Tour Packages</h3>
-                <p className="text-xs text-slate-500">Edit existing packages, add new ones, or manage unlimited photos.</p>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-bold text-slate-900">Current Tour Packages</h3>
+                  <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                    supabaseStatus === 'connected'
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'bg-amber-100 text-amber-800'
+                  }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${supabaseStatus === 'connected' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                    <span>{supabaseStatus === 'connected' ? 'Supabase Synced' : 'Local + Server Ready'}</span>
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">Edit existing packages, add new ones, or upload unlimited photos.</p>
               </div>
-              <button
-                onClick={handleStartCreate}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2.5 rounded-xl shadow-xs transition-all flex items-center gap-2 text-xs sm:text-sm cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add New Package</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleSyncAllToSupabase}
+                  disabled={syncingAll}
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-3.5 py-2.5 rounded-xl border border-slate-300 shadow-xs transition-all flex items-center gap-1.5 text-xs cursor-pointer disabled:opacity-50"
+                  title="Push all packages to Supabase cloud table"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${syncingAll ? 'animate-spin' : ''}`} />
+                  <span>{syncingAll ? 'Syncing...' : 'Sync Supabase'}</span>
+                </button>
+                <button
+                  onClick={handleStartCreate}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2.5 rounded-xl shadow-xs transition-all flex items-center gap-2 text-xs sm:text-sm cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add New Package</span>
+                </button>
+              </div>
             </div>
           )}
 
@@ -1015,7 +1056,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
 
             <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Connection Status</span>
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Connection Status</span>
+                <button
+                  onClick={handleSyncAllToSupabase}
+                  disabled={syncingAll}
+                  className="text-[11px] font-bold text-amber-800 hover:text-amber-950 underline flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3 h-3 ${syncingAll ? 'animate-spin' : ''}`} />
+                  <span>{syncingAll ? 'Syncing...' : 'Sync All Packages Now'}</span>
+                </button>
+              </div>
               <div className="flex items-center gap-2 pt-0.5">
                 <span className={`w-3 h-3 rounded-full ${supabaseStatus === 'connected' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
                 <span className="text-xs font-bold text-slate-900">

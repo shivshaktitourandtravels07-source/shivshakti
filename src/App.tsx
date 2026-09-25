@@ -26,8 +26,9 @@ export default function App() {
   const loadPackages = async () => {
     try {
       const stored = await getStoredPackages();
-      if (Array.isArray(stored) && stored.length > 0) {
+      if (Array.isArray(stored)) {
         setPackages(stored);
+        return stored;
       }
     } catch (err) {
       console.warn('Fallback to initial packages:', err);
